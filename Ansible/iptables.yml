@@ -1,0 +1,20 @@
+- name: Configure Iptables rules
+  hosts: all_nodes
+  become: true
+  tasks:
+    - name: Allow all traffic between VMs
+      ansible.builtin.shell: |
+        iptables -A INPUT -s 10.0.1.0/16 -j ACCEPT
+        iptables -A OUTPUT -d 10.0.1.0/16 -j ACCEPT
+
+    - name: Allow SSH from my machine
+      shell: iptables -A INPUT -p tcp --dport 22 -s 92.80.4.206 -j ACCEPT
+      vars:
+
+    - name: Allow HTTP and HTTPS
+      shell: |
+        iptables -A INPUT -p tcp --dport 80 -j ACCEPT
+        iptables -A INPUT -p tcp --dport 443 -j ACCEPT
+
+    - name: Save iptables rules
+      shell: iptables-save > /etc/sysconfig/iptables

@@ -1,0 +1,38 @@
+---
+- name: Install Grafana
+  hosts: master
+  become: true
+  tasks:
+    - name: Add grafana repository
+      yum_repository:
+        name: grafana
+        description: Grafana repo
+        baseurl: https://packages.grafana.com/oss/rpm
+        enabled: 1
+        gpgcheck: 1
+        gpgkey: https://packages.grafana.com/gpg.key
+
+    - name: Install Grafana
+      yum:
+        name: grafana
+        state: present
+        update_cache: true
+
+    - name: Replace protocol in Grafana config
+      lineinfile:
+        path: /etc/grafana/grafana.ini
+        regexp: 'protocol ='
+        line: 'protocol = http'
+
+    - name: Replace port in Grafana config
+      lineinfile:
+        path: /etc/grafana/grafana.ini
+        regexp: 'http_port ='
+        line: 'http_port = 8100'
+
+    - name: Enable and start Grafana
+      systemd:
+        name: grafana-server
+        enabled: true
+        state: started
+        daemon_reload: true

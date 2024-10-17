@@ -1,0 +1,61 @@
+---
+- name: Install Prometheus & Alertmanager
+  hosts: master
+  become: true
+  tasks:
+    - name: Copy install script for Prometheus
+      copy:
+        src: prometheus_install.sh
+        dest: /root
+        owner: root
+        group: root
+        mode: 0744
+
+    - name: Copy install script for Alertmanager
+      copy:
+        src: alertmanager_install.sh
+        dest: /root
+        owner: root
+        group: root
+        mode: 0744
+
+    - name: Run installation scripts
+      shell: /bin/bash /root/prometheus_install.sh && /bin/bash /root/alertmanager_install.sh
+
+    - name: Copy Prometheus config
+      copy:
+        src: prometheus_config.yml
+        dest: /etc/prometheus/prometheus.yml
+        owner: prometheus
+        group: prometheus
+        mode: 0644
+
+    - name: Copy Prometheus alert rules
+      copy:
+        src: prometheus_alerts.yml
+        dest: /etc/prometheus/alert.rules.yml
+        owner: prometheus
+        group: prometheus
+        mode: 0644
+
+    - name: Copy Alertmanager config
+      copy:
+        src: alertmanager.config
+        dest: /etc/alertmanager/alertmanager.yml
+        owner: alertmanager
+        group: alertmanager
+        mode: 0644
+
+    - name: Enable and start Prometheus
+      systemd:
+        name: prometheus
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Enable and start Alertmanager
+      systemd:
+        name: alertmanager
+        enabled: true
+        state: started
+        daemon_reload: true

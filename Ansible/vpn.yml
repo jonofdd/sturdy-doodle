@@ -1,0 +1,171 @@
+- name: Install WireGuard and Configure VPN
+  hosts: all_nodes
+  become: true
+  tasks:
+    - name: Install Wireguard and tools
+      yum:
+        name:
+          - iproute
+          - iptables
+          - wireguard-tools
+        state: present
+        update_cache: true
+
+    - name: Generate WireGuard private key for server
+      shell: "wg genkey | tee /etc/wireguard/server_private.key"
+      when: inventory_hostname in groups['master']
+      register: server_private_key
+
+    - name: Set server private key as a fact
+      set_fact:
+        server_private_key_fact: "{{ server_private_key.stdout }}"
+      run_once: true
+
+    - name: Generate WireGuard public key for server
+      shell: "cat /etc/wireguard/server_private.key | wg pubkey | tee /etc/wireguard/server_public.key"
+      when: inventory_hostname in groups['master']
+      register: server_public_key
+
+    - name: Set server public key as a fact
+      set_fact:
+        server_public_key_fact: "{{ server_public_key.stdout }}"
+      run_once: true
+
+    - name: Generate WireGuard private key for first client
+      shell: "wg genkey | tee /etc/wireguard/client_1_private.key"
+      delegate_to: "{{ groups['workers'][0] }}"
+      register: client1_private_key
+
+    - name: Set client1 public key as a fact
+      set_fact:
+        client1_private_key_fact: "{{ client1_private_key.stdout }}"
+      run_once: true
+
+    - name: Generate WireGuard private key for second client
+      shell: "wg genkey | tee /etc/wireguard/client_2_private.key"
+      delegate_to: "{{ groups['workers'][1] }}"
+      register: client2_private_key
+
+    - name: Set client2 public key as a fact
+      set_fact:
+        client2_private_key_fact: "{{ client2_private_key.stdout }}"
+      run_once: true
+
+    - name: Configure WireGuard server
+      copy:
+        src: wg_server.conf
+        dest: /etc/wireguard/wg0.conf
+      when: inventory_hostname in groups['master']
+
+    - name: Configure WireGuard clients
+      copy:
+        src: wg_client.conf
+        dest: /etc/wireguard/wg0.conf
+      when: inventory_hostname in groups['workers']
+
+    - name: Replace private key for server in WireGuard config
+      lineinfile:
+        path: /etc/wireguard/wg0.conf
+        regexp: 'PrivateKey = server'
+        line: 'PrivateKey = {{ server_private_key_fact }}'
+      when: inventory_hostname in groups['master']
+
+    - name: Generate WireGuard public key for the first worker
+      shell: "cat /etc/wireguard/client_1_private.key | wg pubkey"
+      register: client1_public_key
+      delegate_to: "{{ groups['workers'][0] }}"
+      run_once: true
+
+    - name: Set client1 public key as a fact
+      set_fact:
+        client1_public_key_fact: "{{ client1_public_key.stdout }}"
+      run_once: true
+
+    - name: Replace public key for client1 in WireGuard config
+      lineinfile:
+        path: /etc/wireguard/wg0.conf
+        regexp: 'PublicKey = client1'
+        line: 'PublicKey = {{ client1_public_key_fact }}'
+      when: inventory_hostname in groups['master']
+
+    - name: Generate WireGuard public key for the second worker
+      shell: "cat /etc/wireguard/client_2_private.key | wg pubkey"
+      register: client2_public_key
+      delegate_to: "{{ groups['workers'][1] }}"
+      run_once: true
+
+    - name: Set client2 public key as a fact
+      set_fact:
+        client2_public_key_fact: "{{ client2_public_key.stdout }}"
+      run_once: true
+
+    - name: Replace public key for client2 in WireGuard config
+      lineinfile:
+        path: /etc/wireguard/wg0.conf
+        regexp: 'PublicKey = client2'
+        line: 'PublicKey = {{ client2_public_key_fact }}'
+      when: inventory_hostname in groups['master']
+
+    - name: Replace Address in WireGuard config for first worker
+      lineinfile:
+        path: /etc/wireguard/wg0.conf
+        regexp: 'Address = 10.0.0.X/24'
+        line: 'Address = 10.0.0.2/24'
+      when: inventory_hostname in groups['workers'][0]
+
+    - name: Replace Address in WireGuard config for second worker
+      lineinfile:
+        path: /etc/wireguard/wg0.conf
+        regexp: 'Address = 10.0.0.X/24'
+        line: 'Address = 10.0.0.3/24'
+      when: inventory_hostname in groups['workers'][1]
+
+    - name: Replace public key in WireGuard config for first worker
+      lineinfile:
+        path: /etc/wireguard/wg0.conf
+        regexp: 'PublicKey = server'
+        line: 'PublicKey = {{ server_public_key_fact }}'
+      when: inventory_hostname in groups['workers'][0]
+
+    - name: Replace public key in WireGuard config for second worker
+      lineinfile:
+        path: /etc/wireguard/wg0.conf
+        regexp: 'PublicKey = server'
+        line: 'PublicKey = {{ server_public_key_fact }}'
+      when: inventory_hostname in groups['workers'][1]
+
+    - name: Replace private key in WireGuard config for first worker
+      lineinfile:
+        path: /etc/wireguard/wg0.conf
+        regexp: 'PrivateKey = key'
+        line: 'PrivateKey = {{ client1_private_key_fact }}'
+      when: inventory_hostname in groups['workers'][0]
+
+    - name: Replace private key in WireGuard config for second worker
+      lineinfile:
+        path: /etc/wireguard/wg0.conf
+        regexp: 'PrivateKey = key'
+        line: 'PrivateKey = {{ client2_private_key_fact }}'
+      when: inventory_hostname in groups['workers'][1]
+
+    - name: Stop WireGuard interface if present
+      shell: "wg-quick stop wg0"
+      ignore_errors: yes
+
+    - name: Enable WireGuard service to start on boot
+      systemd:
+        name: wg-quick@wg0
+        enabled: yes
+        state: started
+    - name: Allow ICMP on WireGuard interface
+      iptables:
+        chain: INPUT
+        in_interface: wg0
+        protocol: icmp
+        jump: ACCEPT
+
+    - name: Drop all other traffic on WireGuard interface
+      iptables:
+        chain: INPUT
+        in_interface: wg0
+        jump: DROP

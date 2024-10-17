@@ -1,0 +1,46 @@
+---
+- name: Change hostnames
+  hosts: all_nodes
+  become: true
+  tasks:
+    - name: Update and upgrade system packages
+      yum:
+        name: "*"
+        state: latest
+
+    - name: Set unique hostname for master
+      when: "'master' in group_names"
+      hostname:
+        name: "k8s-master"
+    
+    - name: Set unique hostname for worker nodes
+      when: "'workers' in group_names"
+      hostname:
+        name: "k8s-worker-{{ groups['workers'].index(inventory_hostname) + 1 }}"
+
+    - name: Set bootproto to none
+      lineinfile:
+        path: /etc/sysconfig/network-scripts/ifcfg-eth0
+        regexp: 'dhcp'
+        line: 'BOOTPROTO=none'
+        state: present
+
+    - name: Remove PERSISTENT_DHCLIENT
+      lineinfile:
+        path: /etc/sysconfig/network-scripts/ifcfg-eth0
+        regexp: 'PERSISTENT_DHCLIENT=yes'
+        line: 'PERSISTENT_DHCLIENT=no'
+        state: present
+
+    - name: Reboot to apply hostname changes
+      reboot:
+        msg: "Rebooting to apply hostname changes"
+        pre_reboot_delay: 5
+        post_reboot_delay: 30
+
+    - name: Add Google DNS nameserver to resolv.conf
+      lineinfile:
+        path: /etc/resolv.conf
+        line: 'nameserver 8.8.8.8'
+        state: present
+        insertafter: EOF

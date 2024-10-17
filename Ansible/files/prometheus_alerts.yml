@@ -1,0 +1,47 @@
+groups:
+  - name: alert_rules
+    rules:
+      - alert: HighCPUUsage
+        expr: avg by(instance) (rate(node_cpu_seconds_total{mode!="idle"}[5m])) > 0.9
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on instance {{ $labels.instance }}"
+          description: "CPU usage is above 90% on {{ $labels.instance }} for the last 2 minutes."
+
+      - alert: NodeDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Instance {{ $labels.instance }} is down"
+          description: "The instance {{ $labels.instance }} has been down for more than 1 minute."
+
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes > 0.9
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Memory usage on instance {{ $labels.instance }}"
+          description: "Memory usage is above 90% on {{ $labels.instance }} for the last 2 minutes."
+
+      - alert: HighFilesystemUsage
+        expr: (node_filesystem_size_bytes{fstype!="tmpfs",fstype!="overlay"} - node_filesystem_free_bytes{fstype!="tmpfs",fstype!="overlay"}) / node_filesystem_size_bytes{fstype!="tmpfs",fstype!="overlay"} > 0.9
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Filesystem usage on instance {{ $labels.instance }}"
+          description: "Filesystem usage is above 90% on {{ $labels.instance }} for the last 2 minutes."
+
+      - alert: HTTPStatusCodeNon200
+        expr: probe_http_status_code{instance=~"$target"} != 200
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "HTTP status code is different then 200 for target {{ $labels.instance }}"
+          description: "The HTTP status code returned for target {{ $labels.instance }} is {{ $value }} instead of 200."

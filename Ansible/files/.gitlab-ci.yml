@@ -1,0 +1,14 @@
+stages:
+  - build
+  - deploy
+
+build:
+  stage: build
+  script:
+    - ./build.sh
+
+deploy:
+  stage: deploy
+  script:
+    - ./deploy.sh
+    - docker stack deploy -c docker-stack.yml hello-world-stack

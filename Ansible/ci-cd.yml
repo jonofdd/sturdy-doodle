@@ -1,0 +1,94 @@
+---
+- name: Configure CI/CD
+  hosts: master
+  become: true
+  tasks:
+    - name: Create ci-cd directory
+      file:
+        path: /root/ci-cd
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Copy build script
+      copy:
+        src: build.sh
+        dest: /root/ci-cd
+        owner: root
+        group: root
+        mode: 0744
+
+    - name: Copy deploy script
+      copy:
+        src: deploy.sh
+        dest: /root/ci-cd
+        owner: root
+        group: root
+        mode: 0744
+
+    - name: Copy docker stack file
+      copy:
+        src: docker-stack.yml
+        dest: /root/ci-cd
+        owner: root
+        group: root
+        mode: 0644
+
+    - name: Copy gitlab runner script
+      copy:
+        src: install_gitlab_runner.sh
+        dest: /root/ci-cd
+        owner: root
+        group: root
+        mode: 0744
+
+    - name: Copy gitlab stack file
+      copy:
+        src: gitlab-stack.yml
+        dest: /root/ci-cd
+        owner: root
+        group: root
+        mode: 0644
+
+    - name: Copy the Dockerfile
+      copy:
+        src: Dockerfile
+        dest: /root/ci-cd
+        owner: root
+        group: root
+        mode: 0644
+
+# Following tasks are commented out due to the high memory strain it brings to the system.
+    # - name: Deploy gitlab to stack
+    #   shell: docker stack deploy -c /root/ci-cd/gitlab-stack.yml gitlab
+
+    # - name: Run runner install script
+    #   shell: /bin/bash /root/ci-cd/install_gitlab_runner.sh
+
+    - name: Copy gitlab ci file
+      copy:
+        src: .gitlab-ci.yml
+        dest: /root/ci-cd
+        owner: root
+        group: root
+        mode: 0644
+
+    - name: Copy package.json file
+      copy:
+        src: package.json
+        dest: /root/ci-cd
+        owner: root
+        group: root
+        mode: 0644
+
+    - name: Copy app.js file
+      copy:
+        src: app.js
+        dest: /root/ci-cd
+        owner: root
+        group: root
+        mode: 0644
+
+    - name: Deploy application to stack
+      shell: /bin/bash /root/ci-cd/build.sh && /bin/bash /root/ci-cd/deploy.sh

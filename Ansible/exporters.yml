@@ -1,0 +1,57 @@
+---
+- name: Install and configure the exporters
+  hosts: all_nodes
+  become: true
+  tasks:
+    - name: Copy install script for node_exporter
+      copy:
+        src: node_exporter.sh
+        dest: /root
+        owner: root
+        group: root
+        mode: 0744
+
+    - name: Copy install script for blackbox_exporter
+      copy:
+        src: blackbox_exporter.sh
+        dest: /root
+        owner: root
+        group: root
+        mode: 0744
+
+    - name: Run installation scripts
+      shell: /bin/bash /root/node_exporter.sh && /bin/bash /root/blackbox_exporter.sh
+
+    - name: Enable and start node_exporter
+      systemd:
+        name: node_exporter
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Enable and start blackbox_exporter
+      systemd:
+        name: blackbox_exporter
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Copy Docker Swarm config
+      copy:
+        src: docker-swarm-exporter.yml
+        dest: /root/ci-cd
+        owner: root
+        group: root
+        mode: 0644
+      when: inventory_hostname in groups['master']
+
+    - name: Deploy Docker Swarm exporter stack
+      shell: docker stack deploy -c /root/ci-cd/docker-swarm-exporter.yml monitoring
+      when: inventory_hostname in groups['master']
+
+    - name: Restart Prometheus service
+      systemd:
+        name: prometheus
+        enabled: true
+        state: restarted
+      when: inventory_hostname in groups['master']

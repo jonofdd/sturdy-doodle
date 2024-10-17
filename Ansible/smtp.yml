@@ -1,0 +1,54 @@
+---
+- name: Install postfix SMTP server
+  hosts: master
+  become: true
+  tasks:
+    - name: Install posftfix
+      yum:
+        name: 
+          - postfix
+          - mailx
+        state: present
+        update_cache: true
+
+    - name: Copy postfix config
+      copy:
+        src: postfix.config
+        dest: /etc/postfix/main.cf
+        owner: root
+        group: root
+        mode: 0644
+
+    - name: Create sasl directory for Postfix
+      file:
+        path: /etc/postfix/sasl
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Copy sasl file
+      copy:
+        src: sasl
+        dest: /etc/postfix/sasl/sasl_passwd
+        owner: root
+        group: root
+        mode: 0644
+
+    - name: Run postmap command
+      shell: postmap /etc/postfix/sasl/sasl_passwd && chmod 600 /etc/postfix/sasl/sasl_passwd /etc/postfix/sasl/sasl_passwd.db
+
+    - name: Add SSL_CERT_FILE environment variable
+      lineinfile:
+        path: /root/.bashrc
+        line: SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+        state: present
+
+    - name: Pull variables from .bashrc
+      shell: source .bashrc
+
+    - name: Enable and start postfix
+      systemd:
+        name: postfix
+        enabled: true
+        state: started
